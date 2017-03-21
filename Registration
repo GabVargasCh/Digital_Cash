@@ -1,0 +1,90 @@
+Imports System
+Imports System.Net
+Imports System.Text
+Imports System.IO
+Imports System.Text.RegularExpressions
+
+Public Class RegistraHuellas
+    Dim WithEvents objUCBBioBSP As UCBioBSPCOMLib.UCBioBSP
+    Dim objDevice As UCBioBSPCOMLib.IDevice
+    Dim objExtraction As UCBioBSPCOMLib.IExtraction
+    Dim objMatching As UCBioBSPCOMLib.IMatching
+    Dim objFPData As UCBioBSPCOMLib.IFPData
+    Dim objFastSearch As UCBioBSPCOMLib.IFastSearch
+    Private Sub RegistraHuellas_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        'Se inicializan las variables necesarias al cargar el programa.
+        objUCBBioBSP = New UCBioBSPCOMLib.UCBioBSP
+        objDevice = objUCBBioBSP.Device
+        objExtraction = objUCBBioBSP.Extraction
+        objMatching = objUCBBioBSP.Matching
+        objFPData = objUCBBioBSP.FPData
+        objFastSearch = objUCBBioBSP.FastSearch
+    End Sub
+
+    Private Sub btnRegistrar_Click(sender As Object, e As EventArgs) Handles btnRegistrar.Click
+        'Variable declaration for request resources from the server
+        Dim request As HttpWebRequest
+        Dim response As HttpWebResponse
+        Dim reader As StreamReader
+
+        'Temporal variables
+        Dim uri As String = "http://54.69.203.92:8080/WebServices/webresources/Olympus/Huellas"
+        Dim huella As String
+        Dim output As String
+
+        'Validation variables
+        Dim emailRegex As Regex = New Regex("^(([^<>()[\]\\.,;:\s@\""]+(\.[^<>()[\]\\.,;:\s@\""]+)*)|(\"".+\""))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$")
+        Dim valEmail As Boolean = True
+
+        'Mail Variable
+        Dim email As String = txtEmail.Text
+
+        'Email variable validation
+        valEmail = emailRegex.IsMatch(email)
+
+        'Displays a message in case of error resulted on email validation. I case of no error found, then we proceed to prepare the fingerprint reader device 
+	 to fingerprint regitration
+        If valEmail = False Then
+            MsgBox("Debe ingresar una dirección de correo válida", MsgBoxStyle.Exclamation, "Error")
+        Else
+
+            'Activates the fingerprint device 
+            Call objDevice.Open(27)
+            Call objExtraction.Enroll("")
+
+            'If there's no error int he process
+            If objUCBBioBSP.ErrorCode = 0 Then
+                'Gets the fingerprint and stores a text code on a variable called "huella"
+                huella = objExtraction.TextFIR
+
+                'Web service request
+                uri = uri + "?email=" + email + "&huellas=" + huella
+
+                Try
+                    request = DirectCast(WebRequest.Create(uri), HttpWebRequest)
+                    response = DirectCast(request.GetResponse(), HttpWebResponse)
+                    reader = New StreamReader(response.GetResponseStream)
+                    output = CStr(reader.ReadToEnd)
+                Catch ex As Exception
+                    MsgBox(ex.Message, MsgBoxStyle.ApplicationModal)
+                End Try
+		
+		'Displays a message of new fingerprint registrtion status (successful storage / failed storage)
+                If output = 1 Then
+                    MsgBox("Sus huellas se han actualizado exitosamente", MsgBoxStyle.OkOnly, "Registro de huellas")
+                Else
+                    MsgBox("Lo sentimos, no se encontró a alguien registrado con el email: " + email + ". Intente de nuevo con otro e-mail", MsgBoxStyle.Exclamation, "Registro de huellas")
+                End If
+
+            End If
+            Call objDevice.Close(27)
+
+        End If
+        Form1.btnRealizaPago.Focus()
+        Me.Close()
+    End Sub
+
+			
+    
+
+End Class
